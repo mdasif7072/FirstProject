@@ -1,23 +1,127 @@
-using System;  
-  public class PrimeNumberExample  
-   {  
-     public static void Main(string[] args)  
-      {  
-          int n, i, m=0, flag=0;    
-          Console.Write("Enter the Number to check Prime: ");    
-          n = int.Parse(Console.ReadLine());  
-          m=n/2;    
-          for(i = 2; i <= m; i++)    
-          {    
-           if(n % i == 0)    
-            {    
-             Console.Write("Number is not Prime.");    
-             flag=1;    
-             break;    
-            }    
-          }    
-          if (flag==0)    
-           Console.Write("Number is Prime.");       
-     }  
-   }  
-Output 
+ using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Web.UI;
+using System.Web.UI.WebControls;
+using System.Data.SqlClient;
+using System.Data.OleDb;
+using System.IO;
+using System.Reflection.Emit;
+using System.Data;
+using System.Drawing;
+using System.Xml.Linq;
+using System.Configuration;
+using System.Web.DynamicData;
+using ClosedXML.Excel;
+
+namespace Max_Mobility_Assignment
+{
+    public partial class WebForm1 : System.Web.UI.Page
+    {
+        static string conStr = ConfigurationManager.ConnectionStrings["DB_Connection"].ConnectionString.ToString();
+        SqlConnection con = new SqlConnection(conStr);
+        protected void Page_Load(object sender, EventArgs e)
+        {
+
+        }
+        void SaveExcelData(int si_no,string name,string email,long phone_no,string address)
+        {
+            if (si_no != 0 && name != "" && email != "" && phone_no != 0 && address != "")
+            {
+                SqlParameter[] param = new SqlParameter[6];
+                param[0] = new SqlParameter("@si_no", si_no);
+                param[1] = new SqlParameter("@name", name);
+                param[2] = new SqlParameter("@email", email);
+                param[3] = new SqlParameter("@phone", phone_no);
+                param[4] = new SqlParameter("@address", address);
+                param[5] = new SqlParameter("@status", "Success");
+
+
+                SqlCommand cmd = new SqlCommand("sp_Insert_Data", con);
+                cmd.CommandType = CommandType.StoredProcedure;
+                foreach(var p in param)
+                {
+                    cmd.Parameters.Add(p);
+                }
+                con.Open();
+                cmd.ExecuteNonQuery();
+                lblMessage.ForeColor = System.Drawing.Color.Green;
+                lblMessage.Text = "Data Added Successfully";
+                con.Close();
+            }
+            else
+            {
+                lblMessage.ForeColor = System.Drawing.Color.Red;
+
+                lblMessage.Text = "Failure";
+            }
+        }
+
+        protected void btnSubmit_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                int Si_no = 0;
+                string Name = "";
+                string Email = "";
+                long Phone_No = 0;
+                string Address = "";
+
+                string path = Path.GetFileName(FileUpload1.FileName);
+                path = path.Replace(" ", "");
+                FileUpload1.SaveAs(Server.MapPath("~/ExcelFile/") + path);
+                string ExcelPath = Server.MapPath("~/ExcelFile/") + path;
+                string connection = "Provider = Microsoft.ACE.OLEDB.16.0; Data Source = " + ExcelPath + "; Extended Properties = 'Excel 12.0 Xml;HDR=YES;IMEX=1'; Persist Security Info = False;";
+                OleDbConnection mycon = new OleDbConnection(connection);
+                mycon.Open();
+                OleDbCommand cmd = new OleDbCommand("select * from [Sheet1$]", mycon);
+                OleDbDataReader dr = cmd.ExecuteReader();
+                while (dr.Read())
+                {
+                    if (dr[0] != DBNull.Value && dr[1].ToString() != "" && dr[2].ToString() != "" && dr[3] != DBNull.Value && dr[4].ToString() != "")
+                    {
+
+                        Si_no = Convert.ToInt32(dr[0].ToString());
+                        Name = dr[1].ToString();
+                        Email = dr[2].ToString();
+                        Phone_No = Convert.ToInt64(dr[3].ToString());
+                        Address = dr[4].ToString();
+                    }
+
+                    SaveExcelData(Si_no, Name, Email, Phone_No, Address);
+                }
+            }
+            catch (Exception ex)
+            {
+                lblMessage.ForeColor = System.Drawing.Color.Red;
+                lblMessage.Text = ex.Message;
+            }
+        }
+
+        protected void btn_Download_Click(object sender, EventArgs e)
+        {
+            SqlDataAdapter sda = new SqlDataAdapter("sp_View_Data", con);
+            DataTable dataTable = new DataTable();
+            sda.Fill(dataTable);
+
+            using (XLWorkbook wb = new XLWorkbook())
+            {
+                wb.Worksheets.Add(dataTable, "employee");
+
+                Response.Clear();
+                Response.Buffer = true;
+                Response.Charset = "";
+                Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+                Response.AddHeader("content-disposition", "attachment;filename=SqlFileExport.xlsx");
+                using (MemoryStream MyMemoryStream = new MemoryStream())
+                {
+                    wb.SaveAs(MyMemoryStream);
+                    MyMemoryStream.WriteTo(Response.OutputStream);
+                    Response.Flush();
+                    Response.End();
+                }
+            }
+        }
+    }
+}
