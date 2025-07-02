@@ -1,4 +1,4 @@
- using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Web;
@@ -15,81 +15,90 @@ using System.Configuration;
 using System.Web.DynamicData;
 using ClosedXML.Excel;
 
-namespace Max_Mobility_Assignment
+namespace PaymentGetway
 {
     public partial class WebForm1 : System.Web.UI.Page
     {
-        static string conStr = ConfigurationManager.ConnectionStrings["DB_Connection"].ConnectionString.ToString();
+        static string conStr = ConfigurationManager.ConnectionStrings["conn"].ConnectionString.ToString();
         SqlConnection con = new SqlConnection(conStr);
         protected void Page_Load(object sender, EventArgs e)
         {
 
         }
-        void SaveExcelData(int si_no,string name,string email,long phone_no,string address)
+        void SaveExcelData(List<string> data) 
         {
-            if (si_no != 0 && name != "" && email != "" && phone_no != 0 && address != "")
+            SqlParameter[] sqlParameter = new SqlParameter[11]
+             {
+                new SqlParameter("@BUS_NO",data[0]),
+                new SqlParameter("@BUS_NAME",data[1]),
+                new SqlParameter("@Via",data[2]),
+                new SqlParameter("@Timing",data[3]),
+                new SqlParameter("@BUS_NUMBER",data[4]),
+                new SqlParameter("@CITY",data[5]),
+                new SqlParameter("@PICKUP_POINT",data[6]),
+                new SqlParameter("@DROP_POINT",data[7]),
+                new SqlParameter("@Drop_Timing",data[8]),
+                new SqlParameter("@Seat_TICKET",data[9]),
+                new SqlParameter("@Sleeper_TICKET",data[10]),
+             };
+
+            SqlCommand cmd = new SqlCommand("sp_Insert", con);
+            cmd.CommandType = CommandType.StoredProcedure;
+            foreach (var p in sqlParameter)
             {
-                SqlParameter[] param = new SqlParameter[6];
-                param[0] = new SqlParameter("@si_no", si_no);
-                param[1] = new SqlParameter("@name", name);
-                param[2] = new SqlParameter("@email", email);
-                param[3] = new SqlParameter("@phone", phone_no);
-                param[4] = new SqlParameter("@address", address);
-                param[5] = new SqlParameter("@status", "Success");
-
-
-                SqlCommand cmd = new SqlCommand("sp_Insert_Data", con);
-                cmd.CommandType = CommandType.StoredProcedure;
-                foreach(var p in param)
-                {
-                    cmd.Parameters.Add(p);
-                }
-                con.Open();
-                cmd.ExecuteNonQuery();
-                lblMessage.ForeColor = System.Drawing.Color.Green;
-                lblMessage.Text = "Data Added Successfully";
-                con.Close();
+                cmd.Parameters.Add(p);
             }
-            else
-            {
-                lblMessage.ForeColor = System.Drawing.Color.Red;
-
-                lblMessage.Text = "Failure";
-            }
+            con.Open();
+            cmd.ExecuteNonQuery();
+            lblMessage.ForeColor = System.Drawing.Color.Green;
+            lblMessage.Text = "Data Added Successfully";
+            con.Close();
+            
         }
 
         protected void btnSubmit_Click(object sender, EventArgs e)
         {
             try
             {
-                int Si_no = 0;
-                string Name = "";
-                string Email = "";
-                long Phone_No = 0;
-                string Address = "";
-
-                string path = Path.GetFileName(FileUpload1.FileName);
+                string conStringExcel = string.Empty;
+                string path = Path.GetFileName(UploadBus.FileName);
                 path = path.Replace(" ", "");
-                FileUpload1.SaveAs(Server.MapPath("~/ExcelFile/") + path);
+                UploadBus.SaveAs(Server.MapPath("~/ExcelFile/") + path);
                 string ExcelPath = Server.MapPath("~/ExcelFile/") + path;
-                string connection = "Provider = Microsoft.ACE.OLEDB.16.0; Data Source = " + ExcelPath + "; Extended Properties = 'Excel 12.0 Xml;HDR=YES;IMEX=1'; Persist Security Info = False;";
-                OleDbConnection mycon = new OleDbConnection(connection);
-                mycon.Open();
-                OleDbCommand cmd = new OleDbCommand("select * from [Sheet1$]", mycon);
+                string extension = Path.GetExtension(ExcelPath);
+
+                switch (extension.ToLower())
+                {
+                    case ".xls":
+                        conStringExcel = ConfigurationManager.ConnectionStrings["Excel03conStringExcel"].ConnectionString;
+                        break;
+                    case ".xlsx":
+                        conStringExcel = ConfigurationManager.ConnectionStrings["Excel07+conStringExcel"].ConnectionString;
+                        break;
+                }
+                conStringExcel = string.Format(conStringExcel, ExcelPath);   
+                OleDbConnection mycon = new OleDbConnection(conStringExcel);
+                mycon.Open(); 
+                DataTable dtSheet = mycon.GetOleDbSchemaTable(OleDbSchemaGuid.Tables, null); 
+                OleDbCommand cmd = new OleDbCommand("SELECT * FROM [" + dtSheet.Rows[0]["TABLE_NAME"] + "]", mycon); 
                 OleDbDataReader dr = cmd.ExecuteReader();
                 while (dr.Read())
                 {
-                    if (dr[0] != DBNull.Value && dr[1].ToString() != "" && dr[2].ToString() != "" && dr[3] != DBNull.Value && dr[4].ToString() != "")
+                    List<string> data = new List<string>
                     {
-
-                        Si_no = Convert.ToInt32(dr[0].ToString());
-                        Name = dr[1].ToString();
-                        Email = dr[2].ToString();
-                        Phone_No = Convert.ToInt64(dr[3].ToString());
-                        Address = dr[4].ToString();
-                    }
-
-                    SaveExcelData(Si_no, Name, Email, Phone_No, Address);
+                        {dr[0].ToString()},
+                        {dr[1].ToString()},
+                        {dr[2].ToString()},
+                        {dr[3].ToString()},
+                        {dr[4].ToString()},
+                        {dr[5].ToString()},
+                        {dr[6].ToString()},
+                        {dr[7].ToString()},
+                        {dr[8].ToString()},
+                        {dr[9].ToString()},
+                        {dr[10].ToString()},
+                    };  
+                    SaveExcelData(data);
                 }
             }
             catch (Exception ex)
